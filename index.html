@@ -12,7 +12,6 @@
         }
         #map { height: 100vh; width: 100%; }
 
-        /* ===== Кнопка открытия фильтров ===== */
         #toggle-filters {
             position: fixed; top: 12px; left: 12px; z-index: 250;
             padding: 10px 16px; background: white; border: none;
@@ -22,7 +21,6 @@
         }
         #toggle-filters:hover { background: #f5f5f5; }
 
-        /* ===== Боковая панель фильтров ===== */
         #sidebar {
             position: fixed; top: 0; left: 0; width: 320px;
             height: 100vh; background: white; overflow-y: auto;
@@ -33,9 +31,7 @@
         }
         #sidebar.open { transform: translateX(0); }
 
-        #sidebar h2 {
-            font-size: 18px; margin-bottom: 16px; color: #202124;
-        }
+        #sidebar h2 { font-size: 18px; margin-bottom: 16px; color: #202124; }
         .filter-section {
             margin-bottom: 20px; padding-bottom: 16px;
             border-bottom: 1px solid #eee;
@@ -72,7 +68,6 @@
             padding: 8px; background: #f8f9fa; border-radius: 6px;
         }
 
-        /* ===== Всплывающее окно метки ===== */
         .info-window { max-width: 300px; padding: 10px; }
         .info-window h3 { margin-bottom: 8px; color: #333; font-size: 16px; font-weight: 600; }
         .info-window .address { color: #555; font-size: 12px; margin-bottom: 4px; }
@@ -98,12 +93,13 @@
             transform: translate(-50%, -50%);
             background: white; padding: 20px 40px; border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            font-size: 16px; z-index: 9999;
+            font-size: 15px; z-index: 9999;
+            text-align: center; min-width: 260px;
         }
         #loading.hidden { display: none; }
         #loading.error { color: #d32f2f; }
+        #loading .progress-text { margin-top: 8px; font-size: 13px; color: #666; }
 
-        /* ===== Мобильная адаптация ===== */
         @media (max-width: 480px) {
             #sidebar { width: 90%; }
         }
@@ -150,67 +146,69 @@
         <div id="counter">Показано: 0 из 0</div>
     </aside>
 
-    <div id="loading">Загрузка карты...</div>
+    <div id="loading">
+        <div>Загрузка карты...</div>
+        <div class="progress-text" id="progress-text"></div>
+    </div>
     <div id="map"></div>
 
-    <!-- 1. PapaParse — чтение CSV -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-
-    <!-- 2. MarkerClusterer — кластеризация -->
     <script src="https://unpkg.com/@googlemaps/markerclusterer@2.5.3/dist/index.min.js"></script>
-
-    <!-- 3. Google Maps API -->
     <script async
         src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBk4WJwLRmDDs85K2V9Uhyijxc35HazgAs&callback=initMap">
     </script>
 
     <script>
         let map;
-        const allMarkers = [];     // все созданные маркеры (с метаданными)
-        let clusterer = null;      // кластеризатор
+        const allMarkers = [];
+        let clusterer = null;
         let loadingTimeout;
 
-        // ===== ПЕРЕВОД РУССКИХ КАТЕГОРИЙ =====
+        // ===== КЭШ ГЕОКОДИРОВАНИЯ =====
+        // Хранит пары «адрес → {lat, lng}», чтобы не переспрашивать Google каждый раз
+        const CACHE_KEY = 'ufa_kids_map_geocode_v1';
+
+        function loadCache() {
+            try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); }
+            catch { return {}; }
+        }
+        function saveCache(cache) {
+            try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); }
+            catch (e) { console.warn('Кэш не сохранился:', e); }
+        }
+
+        // ===== ПЕРЕВОД КАТЕГОРИЙ =====
         const CATEGORY_MAP = {
-            'парк': 'park',
-            'набережная': 'water',
-            'ожерелье': 'necklace',
-            'площадка': 'playground',
-            'игровой центр': 'play_center',
-            'зоопарк': 'zoo',
-            'ферма': 'farm',
-            'пикник': 'picnic',
-            'каток': 'skating_rink',
-            'ледовый городок': 'ice_town',
-            'тюбинг': 'tubing',
-            'горнолыжка': 'ski_resort',
+            'парк': 'park', 'набережная': 'water', 'ожерелье': 'necklace',
+            'площадка': 'playground', 'игровой центр': 'play_center',
+            'зоопарк': 'zoo', 'ферма': 'farm', 'пикник': 'picnic',
+            'каток': 'skating_rink', 'ледовый городок': 'ice_town',
+            'тюбинг': 'tubing', 'горнолыжка': 'ski_resort',
             'верёвочный парк': 'rope_park'
         };
-
         function getCategory(c) {
             if (!c) return 'park';
             const lower = String(c).trim().toLowerCase();
             return CATEGORY_MAP[lower] || 'park';
         }
 
-        // ===== ИКОНКИ =====
         const ICONS = {
-            park:          { icon: '🌳', color: '#2E7D32' },
-            water:         { icon: '🌊', color: '#1E88E5' },
-            necklace:      { icon: '🚶', color: '#00897B' },
-            playground:    { icon: '🛝', color: '#FB8C00' },
-            play_center:   { icon: '🎠', color: '#8E24AA' },
-            zoo:           { icon: '🦙', color: '#F4511E' },
-            farm:          { icon: '🐄', color: '#7CB342' },
-            picnic:        { icon: '🧺', color: '#6D4C41' },
-            skating_rink:  { icon: '⛸️', color: '#03A9F4' },
-            ice_town:      { icon: '❄️', color: '#9C27B0' },
-            tubing:        { icon: '🎿', color: '#FF5722' },
-            ski_resort:    { icon: '⛷️', color: '#D32F2F' },
-            rope_park:     { icon: '🧗', color: '#E65100' }
+            park:         { icon: '🌳', color: '#2E7D32' },
+            water:        { icon: '🌊', color: '#1E88E5' },
+            necklace:     { icon: '🚶', color: '#00897B' },
+            playground:   { icon: '🛝', color: '#FB8C00' },
+            play_center:  { icon: '🎠', color: '#8E24AA' },
+            zoo:          { icon: '🦙', color: '#F4511E' },
+            farm:         { icon: '🐄', color: '#7CB342' },
+            picnic:       { icon: '🧺', color: '#6D4C41' },
+            skating_rink: { icon: '⛸️', color: '#03A9F4' },
+            ice_town:     { icon: '❄️', color: '#9C27B0' },
+            tubing:       { icon: '🎿', color: '#FF5722' },
+            ski_resort:   { icon: '⛷️', color: '#D32F2F' },
+            rope_park:    { icon: '🧗', color: '#E65100' }
         };
 
-        // ===== ИНИЦИАЛИЗАЦИЯ КАРТЫ =====
+        // ===== ИНИЦИАЛИЗАЦИЯ =====
         function initMap() {
             map = new google.maps.Map(document.getElementById("map"), {
                 center: { lat: 54.7388, lng: 55.9721 },
@@ -224,13 +222,13 @@
             loadingTimeout = setTimeout(() => {
                 const el = document.getElementById('loading');
                 if (el && !el.classList.contains('hidden')) {
-                    el.textContent = 'Ошибка: не удалось загрузить данные';
+                    el.innerHTML = 'Ошибка: не удалось загрузить данные';
                     el.classList.add('error');
                 }
-            }, 10000);
+            }, 60000); // увеличенный таймаут из-за геокодирования
         }
 
-        // ===== ЗАГРУЗКА ДАННЫХ =====
+        // ===== ЗАГРУЗКА CSV =====
         function loadPlaces() {
             const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQNdW85Gii9oFVweII0vvXTXHFifFaB79NDyHpFAxWfbb0eucSgGA_tnvg3Yhu5JjXCBxisgNxgD6F8/pub?output=csv";
 
@@ -238,121 +236,64 @@
                 download: true,
                 header: true,
                 skipEmptyLines: true,
-                complete: function(results) {
+                complete: async function(results) {
                     clearTimeout(loadingTimeout);
                     console.log('Загружено строк:', results.data.length);
 
-                    const valid = results.data.filter(p =>
-                        p.name && ((p.lat && p.lng) || p.address)
-                    );
+                    const valid = results.data.filter(p => p.name && (p.address || (p.lat && p.lng)));
                     console.log('Валидных мест:', valid.length);
 
-                    if (valid.length > 0) displayMarkers(valid);
-
-                    const el = document.getElementById('loading');
-                    if (el) el.classList.add('hidden');
+                    if (valid.length > 0) {
+                        await processPlaces(valid);
+                    } else {
+                        document.getElementById('loading').innerHTML = 'Нет данных в таблице';
+                    }
                 },
                 error: function(err) {
                     clearTimeout(loadingTimeout);
                     console.error('Ошибка загрузки CSV:', err);
                     const el = document.getElementById('loading');
-                    if (el) {
-                        el.textContent = 'Ошибка загрузки данных';
-                        el.classList.add('error');
-                    }
+                    el.textContent = 'Ошибка загрузки данных';
+                    el.classList.add('error');
                 }
             });
         }
 
-        // ===== СОЗДАНИЕ МЕТОК =====
-        function displayMarkers(places) {
-            places.forEach(place => {
-                try {
-                    if (!place.lat || !place.lng) return;
-                    const lat = parseFloat(place.lat);
-                    const lng = parseFloat(place.lng);
-                    if (isNaN(lat) || isNaN(lng)) return;
+        // ===== ОБРАБОТКА ВСЕХ МЕСТ: ГЕОКОДИРОВАНИЕ + СОЗДАНИЕ МАРКЕРОВ =====
+        async function processPlaces(places) {
+            const geocoder = new google.maps.Geocoder();
+            const cache = loadCache();
+            const progressEl = document.getElementById('progress-text');
 
-                    const category = getCategory(place.category);
-                    const iconConfig = ICONS[category] || ICONS.park;
+            let geocodedCount = 0;   // сколько нашлось по адресу
+            let coordCount = 0;      // сколько использовало координаты
+            let failedCount = 0;     // сколько совсем потеряли
 
-                    const svgIcon = {
-                        path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z",
-                        fillColor: iconConfig.color,
-                        fillOpacity: 0.9,
-                        strokeColor: '#ffffff',
-                        strokeWeight: 2,
-                        scale: 2,
-                        anchor: new google.maps.Point(12, 24),
-                        labelOrigin: new google.maps.Point(12, 10)
-                    };
+            for (let i = 0; i < places.length; i++) {
+                const place = places[i];
+                progressEl.textContent = `Обработка ${i + 1} из ${places.length}: ${place.name}`;
 
-                    const marker = new google.maps.Marker({
-                        position: { lat, lng },
-                        icon: svgIcon,
-                        label: {
-                            text: iconConfig.icon,
-                            color: '#ffffff',
-                            fontSize: '14px',
-                            fontWeight: 'bold'
-                        },
-                        title: place.name
-                    });
+                const result = await resolveCoordinates(geocoder, place, cache);
 
-                    // ===== МЕТАДАННЫЕ ДЛЯ ФИЛЬТРОВ =====
-                    const tags = place.tags
-                        ? String(place.tags).split(',').map(t => t.trim().toLowerCase()).filter(t => t)
-                        : [];
-
-                    marker._meta = {
-                        category: category,
-                        categoryRu: String(place.category || '').trim() || 'Без категории',
-                        name: place.name,
-                        price: String(place.price || '').trim().toLowerCase(),
-                        tags: tags
-                    };
-
-                    // ===== КАРТОЧКА =====
-                    const tagsHtml = tags
-                        .map(tag => `<span class="tag">${getTagName(tag)}</span>`)
-                        .join('');
-
-                    let priceHtml = '';
-                    if (place.price && String(place.price).trim() !== '') {
-                        const p = String(place.price).trim().toLowerCase();
-                        if (p === 'free')      priceHtml = '<div class="price free">✓ Бесплатно</div>';
-                        else if (p === 'paid') priceHtml = '<div class="price paid">₽ Платно</div>';
-                    }
-
-                    const addressHtml  = place.address  ? `<div class="address">📍 ${place.address}</div>` : '';
-                    const districtHtml = place.district ? `<div class="district">${place.district}</div>` : '';
-                    const routeUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-
-                    const infoContent = `
-                        <div class="info-window">
-                            <h3>${place.name}</h3>
-                            ${addressHtml}
-                            ${districtHtml}
-                            <div class="tags">${tagsHtml}</div>
-                            <div class="description">${place.description || ''}</div>
-                            ${priceHtml}
-                            <a href="${routeUrl}" target="_blank" class="route-btn">🚗 Проложить маршрут</a>
-                            ${place.link ? `<div style="margin-top:8px;"><a href="${place.link}" target="_blank">Подробнее →</a></div>` : ''}
-                        </div>
-                    `;
-
-                    const infoWindow = new google.maps.InfoWindow({ content: infoContent });
-                    marker.addListener('click', () => infoWindow.open(map, marker));
-
-                    allMarkers.push(marker);
-
-                } catch (e) {
-                    console.error('Ошибка обработки места:', place.name, e);
+                if (!result) {
+                    console.warn(`❌ Не удалось определить местоположение: ${place.name}`);
+                    failedCount++;
+                    continue;
                 }
-            });
+
+                if (result.source === 'address') geocodedCount++;
+                else coordCount++;
+
+                createMarker(place, result.lat, result.lng);
+
+                // Небольшая пауза между запросами, чтобы не упереться в лимит геокодера
+                if (i < places.length - 1) await delay(60);
+            }
+
+            console.log(`✓ По адресу: ${geocodedCount}, по координатам: ${coordCount}, ошибок: ${failedCount}`);
 
             // ===== КЛАСТЕРИЗАЦИЯ =====
-            if (typeof markerClusterer !== 'undefined') {
+            if (typeof markerClusterer !== 'undefined' && allMarkers.length > 0) {
                 clusterer = new markerClusterer.MarkerClusterer({
                     map: map,
                     markers: allMarkers,
@@ -360,17 +301,162 @@
                 });
                 console.log('Кластеризация включена');
             } else {
-                // fallback — просто показываем все маркеры без кластеризации
                 allMarkers.forEach(m => m.setMap(map));
-                console.warn('Кластеризация недоступна, показываем все маркеры');
             }
 
             buildCategoryFilters();
             attachFilterListeners();
             updateCounter();
+
+            document.getElementById('loading').classList.add('hidden');
         }
 
-        // ===== ДИНАМИЧЕСКИЕ ЧЕКБОКСЫ КАТЕГОРИЙ =====
+        // ===== ОПРЕДЕЛЕНИЕ КООРДИНАТ: АДРЕС → КООРДИНАТЫ → NULL =====
+        async function resolveCoordinates(geocoder, place, cache) {
+            // 1. ПРИОРИТЕТ — АДРЕС
+            if (place.address && String(place.address).trim() !== '') {
+                const query = buildAddressQuery(place);
+                
+                // Сначала смотрим кэш
+                if (cache[query]) {
+                    console.log(`📦 Из кэша: ${place.name} → ${cache[query].lat}, ${cache[query].lng}`);
+                    return { ...cache[query], source: 'address' };
+                }
+
+                const coords = await geocodeAddress(geocoder, query);
+                if (coords) {
+                    cache[query] = coords;
+                    saveCache(cache);
+                    console.log(`🌍 По адресу: ${place.name} → ${coords.lat}, ${coords.lng}`);
+                    return { ...coords, source: 'address' };
+                }
+                console.warn(`⚠️ Адрес не найден: ${place.name} (${query}) → пробуем координаты`);
+            }
+
+            // 2. FALLBACK — КООРДИНАТЫ ИЗ ТАБЛИЦЫ
+            if (place.lat && place.lng) {
+                const lat = parseFloat(place.lat);
+                const lng = parseFloat(place.lng);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    console.log(`📌 По координатам: ${place.name} → ${lat}, ${lng}`);
+                    return { lat, lng, source: 'coords' };
+                }
+            }
+
+            return null;
+        }
+
+        // ===== ФОРМИРОВАНИЕ ПОЛНОГО АДРЕСА ДЛЯ ГЕОКОДЕРА =====
+        function buildAddressQuery(place) {
+            const parts = [];
+            if (place.district && String(place.district).trim()) {
+                parts.push(String(place.district).trim());
+            }
+            if (place.address && String(place.address).trim()) {
+                parts.push(String(place.address).trim());
+            }
+            parts.push('Россия');
+            return parts.join(', ');
+        }
+
+        // ===== ЗАПРОС К GEOCODER =====
+        function geocodeAddress(geocoder, address) {
+            return new Promise((resolve) => {
+                geocoder.geocode(
+                    { address: address, region: 'ru', language: 'ru' },
+                    (results, status) => {
+                        if (status === 'OK' && results && results[0]) {
+                            const loc = results[0].geometry.location;
+                            resolve({ lat: loc.lat(), lng: loc.lng() });
+                        } else {
+                            resolve(null);
+                        }
+                    }
+                );
+            });
+        }
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // ===== СОЗДАНИЕ ОДНОГО МАРКЕРА =====
+        function createMarker(place, lat, lng) {
+            try {
+                const category = getCategory(place.category);
+                const iconConfig = ICONS[category] || ICONS.park;
+
+                const svgIcon = {
+                    path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z",
+                    fillColor: iconConfig.color,
+                    fillOpacity: 0.9,
+                    strokeColor: '#ffffff',
+                    strokeWeight: 2,
+                    scale: 2,
+                    anchor: new google.maps.Point(12, 24),
+                    labelOrigin: new google.maps.Point(12, 10)
+                };
+
+                const marker = new google.maps.Marker({
+                    position: { lat, lng },
+                    icon: svgIcon,
+                    label: {
+                        text: iconConfig.icon,
+                        color: '#ffffff',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                    },
+                    title: place.name
+                });
+
+                const tags = place.tags
+                    ? String(place.tags).split(',').map(t => t.trim().toLowerCase()).filter(t => t)
+                    : [];
+
+                marker._meta = {
+                    category: category,
+                    categoryRu: String(place.category || '').trim() || 'Без категории',
+                    name: place.name,
+                    price: String(place.price || '').trim().toLowerCase(),
+                    tags: tags
+                };
+
+                const tagsHtml = tags.map(tag => `<span class="tag">${getTagName(tag)}</span>`).join('');
+
+                let priceHtml = '';
+                if (place.price && String(place.price).trim() !== '') {
+                    const p = String(place.price).trim().toLowerCase();
+                    if (p === 'free')      priceHtml = '<div class="price free">✓ Бесплатно</div>';
+                    else if (p === 'paid') priceHtml = '<div class="price paid">₽ Платно</div>';
+                }
+
+                const addressHtml  = place.address  ? `<div class="address">📍 ${place.address}</div>` : '';
+                const districtHtml = place.district ? `<div class="district">${place.district}</div>` : '';
+                const routeUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+
+                const infoContent = `
+                    <div class="info-window">
+                        <h3>${place.name}</h3>
+                        ${addressHtml}
+                        ${districtHtml}
+                        <div class="tags">${tagsHtml}</div>
+                        <div class="description">${place.description || ''}</div>
+                        ${priceHtml}
+                        <a href="${routeUrl}" target="_blank" class="route-btn">🚗 Проложить маршрут</a>
+                        ${place.link ? `<div style="margin-top:8px;"><a href="${place.link}" target="_blank">Подробнее →</a></div>` : ''}
+                    </div>
+                `;
+
+                const infoWindow = new google.maps.InfoWindow({ content: infoContent });
+                marker.addListener('click', () => infoWindow.open(map, marker));
+
+                allMarkers.push(marker);
+            } catch (e) {
+                console.error('Ошибка при создании маркера:', place.name, e);
+            }
+        }
+
+        // ===== ФИЛЬТРЫ =====
         function buildCategoryFilters() {
             const container = document.getElementById('category-filters');
             container.innerHTML = '';
@@ -380,7 +466,6 @@
                 const cat = m._meta.category;
                 if (seen.has(cat)) return;
                 seen.add(cat);
-
                 const icon = ICONS[cat] ? ICONS[cat].icon : '📍';
                 const label = document.createElement('label');
                 label.innerHTML = `
@@ -391,21 +476,16 @@
             });
         }
 
-        // ===== ЛОГИКА ФИЛЬТРОВ =====
         function passesFilters(m) {
             const meta = m._meta;
-            const checks = document.querySelectorAll('#category-filters input[type="checkbox"]');
 
-            // 1. Категория
             const catCheckbox = document.querySelector(`#category-filters input[data-category="${meta.category}"]`);
             if (catCheckbox && !catCheckbox.checked) return false;
 
-            // 2. Сезон
             const season = document.querySelector('input[name="season"]:checked').value;
             if (season !== 'all') {
                 const seasonTags = ['winter', 'summer', 'all_year'];
                 const placeSeasons = meta.tags.filter(t => seasonTags.includes(t));
-                // если у места нет сезонных тегов — не фильтруем его
                 if (placeSeasons.length > 0) {
                     if (season === 'winter') {
                         if (!placeSeasons.includes('winter') && !placeSeasons.includes('all_year')) return false;
@@ -417,12 +497,10 @@
                 }
             }
 
-            // 3. Цена
             const price = document.querySelector('input[name="price"]:checked').value;
             if (price === 'free' && meta.price !== 'free') return false;
             if (price === 'paid' && meta.price !== 'paid') return false;
 
-            // 4. Теги (все отмеченные должны присутствовать)
             const tagChecks = document.querySelectorAll('#sidebar input[data-tag]');
             for (const cb of tagChecks) {
                 if (cb.checked && !meta.tags.includes(cb.dataset.tag)) return false;
@@ -447,8 +525,7 @@
         function updateCounter(visible) {
             const total = allMarkers.length;
             const shown = visible !== undefined ? visible : total;
-            document.getElementById('counter').textContent =
-                `Показано: ${shown} из ${total}`;
+            document.getElementById('counter').textContent = `Показано: ${shown} из ${total}`;
         }
 
         function attachFilterListeners() {
@@ -457,7 +534,6 @@
             });
         }
 
-        // ===== ПЕРЕВОД ТЕГОВ =====
         function getTagName(tagId) {
             const names = {
                 stroller: 'Коляска', no_steps: 'Без ступенек', toilet: 'Туалет',
@@ -473,7 +549,7 @@
             return names[tagId] || tagId;
         }
 
-        // ===== UI: открыть/закрыть панель =====
+        // ===== UI =====
         document.getElementById('toggle-filters').addEventListener('click', () => {
             const sidebar = document.getElementById('sidebar');
             const btn = document.getElementById('toggle-filters');
@@ -481,7 +557,6 @@
             btn.textContent = sidebar.classList.contains('open') ? '✕ Закрыть' : '🎛 Фильтры';
         });
 
-        // ===== UI: сброс фильтров =====
         document.getElementById('reset-filters').addEventListener('click', () => {
             document.querySelectorAll('#category-filters input[type="checkbox"]')
                 .forEach(cb => cb.checked = true);
