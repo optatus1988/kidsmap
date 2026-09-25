@@ -5,139 +5,172 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Карта мест для отдыха с детьми — Уфа</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body, html {
             height: 100%;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         }
-        
-        #map {
-            height: 100vh;
-            width: 100%;
+        #map { height: 100vh; width: 100%; }
+
+        /* ===== Кнопка открытия фильтров ===== */
+        #toggle-filters {
+            position: fixed; top: 12px; left: 12px; z-index: 250;
+            padding: 10px 16px; background: white; border: none;
+            border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            cursor: pointer; font-size: 14px; font-weight: 600;
+            color: #333; transition: background 0.2s;
         }
-        
-        .info-window {
-            max-width: 300px;
-            padding: 10px;
+        #toggle-filters:hover { background: #f5f5f5; }
+
+        /* ===== Боковая панель фильтров ===== */
+        #sidebar {
+            position: fixed; top: 0; left: 0; width: 320px;
+            height: 100vh; background: white; overflow-y: auto;
+            z-index: 200; padding: 60px 20px 20px;
+            box-shadow: 2px 0 15px rgba(0,0,0,0.1);
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
         }
-        
-        .info-window h3 {
-            margin-bottom: 8px;
-            color: #333;
-            font-size: 16px;
-            font-weight: 600;
+        #sidebar.open { transform: translateX(0); }
+
+        #sidebar h2 {
+            font-size: 18px; margin-bottom: 16px; color: #202124;
         }
-        
-        .info-window .address {
-            color: #555;
-            font-size: 12px;
-            margin-bottom: 4px;
+        .filter-section {
+            margin-bottom: 20px; padding-bottom: 16px;
+            border-bottom: 1px solid #eee;
         }
-        
-        .info-window .district {
-            color: #888;
-            font-size: 12px;
-            margin-bottom: 10px;
+        .filter-section:last-of-type { border-bottom: none; }
+        .filter-section h3 {
+            font-size: 13px; text-transform: uppercase;
+            letter-spacing: 0.5px; color: #5f6368;
+            margin-bottom: 10px; font-weight: 600;
         }
-        
-        .info-window .tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            margin: 10px 0;
+        .filter-section label {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 0; font-size: 14px; color: #202124;
+            cursor: pointer; user-select: none;
         }
-        
+        .filter-section label:hover { color: #1a73e8; }
+        .filter-section input[type="checkbox"],
+        .filter-section input[type="radio"] {
+            cursor: pointer; accent-color: #1a73e8;
+            width: 16px; height: 16px;
+        }
+
+        #reset-filters {
+            width: 100%; padding: 10px;
+            background: #f1f3f4; border: none; border-radius: 8px;
+            cursor: pointer; font-size: 14px; font-weight: 500;
+            color: #202124; transition: background 0.2s;
+        }
+        #reset-filters:hover { background: #e8eaed; }
+
+        #counter {
+            margin-top: 14px; text-align: center;
+            font-size: 13px; color: #5f6368;
+            padding: 8px; background: #f8f9fa; border-radius: 6px;
+        }
+
+        /* ===== Всплывающее окно метки ===== */
+        .info-window { max-width: 300px; padding: 10px; }
+        .info-window h3 { margin-bottom: 8px; color: #333; font-size: 16px; font-weight: 600; }
+        .info-window .address { color: #555; font-size: 12px; margin-bottom: 4px; }
+        .info-window .district { color: #888; font-size: 12px; margin-bottom: 10px; }
+        .info-window .tags { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; }
         .info-window .tag {
-            background: #e3f2fd;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            color: #1976d2;
+            background: #e3f2fd; padding: 3px 8px;
+            border-radius: 12px; font-size: 12px; color: #1976d2;
         }
-        
-        .info-window .description {
-            color: #666;
-            font-size: 14px;
-            line-height: 1.4;
-            margin: 8px 0;
-        }
-        
-        .info-window .price {
-            margin-top: 8px;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        
-        .info-window .price.free {
-            color: #4caf50;
-        }
-        
-        .info-window .price.paid {
-            color: #f44336;
-        }
-        
+        .info-window .description { color: #666; font-size: 14px; line-height: 1.4; margin: 8px 0; }
+        .info-window .price { margin-top: 8px; font-weight: 600; font-size: 14px; }
+        .info-window .price.free { color: #4caf50; }
+        .info-window .price.paid { color: #f44336; }
         .info-window .route-btn {
-            display: inline-block;
-            margin-top: 12px;
-            padding: 8px 14px;
-            background: #1a73e8;
-            color: white;
-            text-decoration: none;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 500;
-            transition: background 0.2s;
+            display: inline-block; margin-top: 12px; padding: 8px 14px;
+            background: #1a73e8; color: white; text-decoration: none;
+            border-radius: 6px; font-size: 13px; font-weight: 500;
         }
-        
-        .info-window .route-btn:hover {
-            background: #1557b0;
-        }
-        
+        .info-window .route-btn:hover { background: #1557b0; }
+
         #loading {
-            position: fixed;
-            top: 50%;
-            left: 50%;
+            position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            background: white;
-            padding: 20px 40px;
-            border-radius: 8px;
+            background: white; padding: 20px 40px; border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            font-size: 16px;
-            z-index: 9999;
+            font-size: 16px; z-index: 9999;
         }
-        
-        #loading.hidden {
-            display: none;
-        }
-        
-        #loading.error {
-            color: #d32f2f;
+        #loading.hidden { display: none; }
+        #loading.error { color: #d32f2f; }
+
+        /* ===== Мобильная адаптация ===== */
+        @media (max-width: 480px) {
+            #sidebar { width: 90%; }
         }
     </style>
 </head>
 <body>
+
+    <button id="toggle-filters">🎛 Фильтры</button>
+
+    <aside id="sidebar">
+        <h2>Фильтры</h2>
+
+        <div class="filter-section">
+            <h3>Категории</h3>
+            <div id="category-filters"></div>
+        </div>
+
+        <div class="filter-section">
+            <h3>Сезон</h3>
+            <label><input type="radio" name="season" value="all" checked> Все сезоны</label>
+            <label><input type="radio" name="season" value="winter"> ❄️ Зима</label>
+            <label><input type="radio" name="season" value="summer"> ☀️ Лето</label>
+            <label><input type="radio" name="season" value="all_year"> 🗓 Круглый год</label>
+        </div>
+
+        <div class="filter-section">
+            <h3>Цена</h3>
+            <label><input type="radio" name="price" value="all" checked> Все</label>
+            <label><input type="radio" name="price" value="free"> ✓ Бесплатно</label>
+            <label><input type="radio" name="price" value="paid"> ₽ Платно</label>
+        </div>
+
+        <div class="filter-section">
+            <h3>Важно для родителей</h3>
+            <label><input type="checkbox" data-tag="stroller"> 🚼 Доступно с коляской</label>
+            <label><input type="checkbox" data-tag="toilet"> 🚻 Есть туалет</label>
+            <label><input type="checkbox" data-tag="cafe"> ☕ Есть кафе</label>
+            <label><input type="checkbox" data-tag="parking"> 🅿️ Есть парковка</label>
+            <label><input type="checkbox" data-tag="animals"> 🐾 Можно к животным</label>
+            <label><input type="checkbox" data-tag="indoor"> 🏠 Крытое (для дождя)</label>
+        </div>
+
+        <button id="reset-filters">Сбросить все фильтры</button>
+        <div id="counter">Показано: 0 из 0</div>
+    </aside>
+
     <div id="loading">Загрузка карты...</div>
     <div id="map"></div>
 
-    <!-- PapaParse для чтения CSV -->
+    <!-- 1. PapaParse — чтение CSV -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 
-    <!-- Google Maps API -->
+    <!-- 2. MarkerClusterer — кластеризация -->
+    <script src="https://unpkg.com/@googlemaps/markerclusterer@2.5.3/dist/index.min.js"></script>
+
+    <!-- 3. Google Maps API -->
     <script async
         src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBk4WJwLRmDDs85K2V9Uhyijxc35HazgAs&callback=initMap">
     </script>
 
     <script>
         let map;
-        let markers = [];
+        const allMarkers = [];     // все созданные маркеры (с метаданными)
+        let clusterer = null;      // кластеризатор
         let loadingTimeout;
-        
-        // ===== ПЕРЕВОД РУССКИХ КАТЕГОРИЙ ИЗ ТАБЛИЦЫ =====
+
+        // ===== ПЕРЕВОД РУССКИХ КАТЕГОРИЙ =====
         const CATEGORY_MAP = {
             'парк': 'park',
             'набережная': 'water',
@@ -154,27 +187,27 @@
             'верёвочный парк': 'rope_park'
         };
 
-        function getCategory(categoryFromTable) {
-            if (!categoryFromTable) return 'park';
-            const lower = String(categoryFromTable).trim().toLowerCase();
+        function getCategory(c) {
+            if (!c) return 'park';
+            const lower = String(c).trim().toLowerCase();
             return CATEGORY_MAP[lower] || 'park';
         }
-        
-        // ===== ИКОНКИ И ЦВЕТА КАТЕГОРИЙ =====
+
+        // ===== ИКОНКИ =====
         const ICONS = {
-            park: { icon: '🌳', color: '#2E7D32' },
-            water: { icon: '🌊', color: '#1E88E5' },
-            necklace: { icon: '🚶', color: '#00897B' },
-            playground: { icon: '🛝', color: '#FB8C00' },
-            play_center: { icon: '🎠', color: '#8E24AA' },
-            zoo: { icon: '🦙', color: '#F4511E' },
-            farm: { icon: '🐄', color: '#7CB342' },
-            picnic: { icon: '🧺', color: '#6D4C41' },
-            skating_rink: { icon: '⛸️', color: '#03A9F4' },
-            ice_town: { icon: '❄️', color: '#9C27B0' },
-            tubing: { icon: '🎿', color: '#FF5722' },
-            ski_resort: { icon: '⛷️', color: '#D32F2F' },
-            rope_park: { icon: '🧗', color: '#E65100' }
+            park:          { icon: '🌳', color: '#2E7D32' },
+            water:         { icon: '🌊', color: '#1E88E5' },
+            necklace:      { icon: '🚶', color: '#00897B' },
+            playground:    { icon: '🛝', color: '#FB8C00' },
+            play_center:   { icon: '🎠', color: '#8E24AA' },
+            zoo:           { icon: '🦙', color: '#F4511E' },
+            farm:          { icon: '🐄', color: '#7CB342' },
+            picnic:        { icon: '🧺', color: '#6D4C41' },
+            skating_rink:  { icon: '⛸️', color: '#03A9F4' },
+            ice_town:      { icon: '❄️', color: '#9C27B0' },
+            tubing:        { icon: '🎿', color: '#FF5722' },
+            ski_resort:    { icon: '⛷️', color: '#D32F2F' },
+            rope_park:     { icon: '🧗', color: '#E65100' }
         };
 
         // ===== ИНИЦИАЛИЗАЦИЯ КАРТЫ =====
@@ -185,85 +218,64 @@
                 mapTypeControl: false,
                 streetViewControl: false
             });
-            
+
             loadPlaces();
-            
-            // Таймаут: если данные не загрузились за 10 секунд - показываем ошибку
+
             loadingTimeout = setTimeout(() => {
-                const loadingEl = document.getElementById('loading');
-                if (loadingEl && !loadingEl.classList.contains('hidden')) {
-                    loadingEl.textContent = 'Ошибка: не удалось загрузить данные';
-                    loadingEl.classList.add('error');
+                const el = document.getElementById('loading');
+                if (el && !el.classList.contains('hidden')) {
+                    el.textContent = 'Ошибка: не удалось загрузить данные';
+                    el.classList.add('error');
                 }
             }, 10000);
         }
 
-        // ===== ЗАГРУЗКА ДАННЫХ ИЗ GOOGLE ТАБЛИЦЫ =====
+        // ===== ЗАГРУЗКА ДАННЫХ =====
         function loadPlaces() {
             const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQNdW85Gii9oFVweII0vvXTXHFifFaB79NDyHpFAxWfbb0eucSgGA_tnvg3Yhu5JjXCBxisgNxgD6F8/pub?output=csv";
-            
+
             Papa.parse(csvUrl, {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
                 complete: function(results) {
                     clearTimeout(loadingTimeout);
-                    console.log('Загружено строк из таблицы:', results.data.length);
-                    
-                    // Фильтруем места: нужны либо координаты, либо адрес
-                    const validPlaces = results.data.filter(place => 
-                        place.name && 
-                        ((place.lat && place.lng) || place.address)
+                    console.log('Загружено строк:', results.data.length);
+
+                    const valid = results.data.filter(p =>
+                        p.name && ((p.lat && p.lng) || p.address)
                     );
-                    
-                    console.log('Валидных мест:', validPlaces.length);
-                    
-                    if (validPlaces.length > 0) {
-                        displayMarkers(validPlaces);
-                    } else {
-                        console.warn('Не найдено ни одного валидного места');
-                    }
-                    
-                    // Скрываем индикатор загрузки
-                    const loadingEl = document.getElementById('loading');
-                    if (loadingEl) {
-                        loadingEl.classList.add('hidden');
-                    }
+                    console.log('Валидных мест:', valid.length);
+
+                    if (valid.length > 0) displayMarkers(valid);
+
+                    const el = document.getElementById('loading');
+                    if (el) el.classList.add('hidden');
                 },
                 error: function(err) {
                     clearTimeout(loadingTimeout);
                     console.error('Ошибка загрузки CSV:', err);
-                    const loadingEl = document.getElementById('loading');
-                    if (loadingEl) {
-                        loadingEl.textContent = 'Ошибка загрузки данных из таблицы';
-                        loadingEl.classList.add('error');
+                    const el = document.getElementById('loading');
+                    if (el) {
+                        el.textContent = 'Ошибка загрузки данных';
+                        el.classList.add('error');
                     }
                 }
             });
         }
 
-        // ===== ОТРИСОВКА МЕТОК =====
+        // ===== СОЗДАНИЕ МЕТОК =====
         function displayMarkers(places) {
-            places.forEach((place) => {
+            places.forEach(place => {
                 try {
-                    // Если есть координаты - используем их
-                    // Если координат нет, но есть адрес - пропускаем (потом добавим геокодирование)
-                    if (!place.lat || !place.lng) {
-                        console.warn('Пропущено (нет координат):', place.name);
-                        return;
-                    }
-                    
+                    if (!place.lat || !place.lng) return;
                     const lat = parseFloat(place.lat);
                     const lng = parseFloat(place.lng);
-                    
-                    if (isNaN(lat) || isNaN(lng)) {
-                        console.warn('Неверные координаты у места:', place.name);
-                        return;
-                    }
+                    if (isNaN(lat) || isNaN(lng)) return;
 
                     const category = getCategory(place.category);
                     const iconConfig = ICONS[category] || ICONS.park;
-                    
+
                     const svgIcon = {
                         path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z",
                         fillColor: iconConfig.color,
@@ -276,8 +288,7 @@
                     };
 
                     const marker = new google.maps.Marker({
-                        position: { lat: lat, lng: lng },
-                        map: map,
+                        position: { lat, lng },
                         icon: svgIcon,
                         label: {
                             text: iconConfig.icon,
@@ -288,26 +299,33 @@
                         title: place.name
                     });
 
-                    // ===== ФОРМИРОВАНИЕ СОДЕРЖИМОГО КАРТОЧКИ =====
-                    const tags = place.tags ? String(place.tags).split(',').map(t => t.trim()).filter(t => t) : [];
-                    const tagsHtml = tags.map(tag => `<span class="tag">${getTagName(tag)}</span>`).join('');
-                    
-                    // Правильная обработка цены
+                    // ===== МЕТАДАННЫЕ ДЛЯ ФИЛЬТРОВ =====
+                    const tags = place.tags
+                        ? String(place.tags).split(',').map(t => t.trim().toLowerCase()).filter(t => t)
+                        : [];
+
+                    marker._meta = {
+                        category: category,
+                        categoryRu: String(place.category || '').trim() || 'Без категории',
+                        name: place.name,
+                        price: String(place.price || '').trim().toLowerCase(),
+                        tags: tags
+                    };
+
+                    // ===== КАРТОЧКА =====
+                    const tagsHtml = tags
+                        .map(tag => `<span class="tag">${getTagName(tag)}</span>`)
+                        .join('');
+
                     let priceHtml = '';
                     if (place.price && String(place.price).trim() !== '') {
-                        const priceLower = String(place.price).trim().toLowerCase();
-                        if (priceLower === 'free') {
-                            priceHtml = '<div class="price free">✓ Бесплатно</div>';
-                        } else if (priceLower === 'paid') {
-                            priceHtml = '<div class="price paid">₽ Платно</div>';
-                        }
+                        const p = String(place.price).trim().toLowerCase();
+                        if (p === 'free')      priceHtml = '<div class="price free">✓ Бесплатно</div>';
+                        else if (p === 'paid') priceHtml = '<div class="price paid">₽ Платно</div>';
                     }
-                    
-                    // Адрес и район
-                    const addressHtml = place.address ? `<div class="address">📍 ${place.address}</div>` : '';
+
+                    const addressHtml  = place.address  ? `<div class="address">📍 ${place.address}</div>` : '';
                     const districtHtml = place.district ? `<div class="district">${place.district}</div>` : '';
-                    
-                    // Кнопка маршрута (открывает Google Maps с прокладкой маршрута)
                     const routeUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 
                     const infoContent = `
@@ -323,63 +341,156 @@
                         </div>
                     `;
 
-                    const infoWindow = new google.maps.InfoWindow({
-                        content: infoContent
-                    });
+                    const infoWindow = new google.maps.InfoWindow({ content: infoContent });
+                    marker.addListener('click', () => infoWindow.open(map, marker));
 
-                    marker.addListener('click', () => {
-                        infoWindow.open(map, marker);
-                    });
+                    allMarkers.push(marker);
 
-                    markers.push(marker);
-                    
-                } catch (error) {
-                    console.error('Ошибка при обработке места:', place.name, error);
+                } catch (e) {
+                    console.error('Ошибка обработки места:', place.name, e);
                 }
+            });
+
+            // ===== КЛАСТЕРИЗАЦИЯ =====
+            if (typeof markerClusterer !== 'undefined') {
+                clusterer = new markerClusterer.MarkerClusterer({
+                    map: map,
+                    markers: allMarkers,
+                    algorithm: new markerClusterer.GridAlgorithm({ gridSize: 60 })
+                });
+                console.log('Кластеризация включена');
+            } else {
+                // fallback — просто показываем все маркеры без кластеризации
+                allMarkers.forEach(m => m.setMap(map));
+                console.warn('Кластеризация недоступна, показываем все маркеры');
+            }
+
+            buildCategoryFilters();
+            attachFilterListeners();
+            updateCounter();
+        }
+
+        // ===== ДИНАМИЧЕСКИЕ ЧЕКБОКСЫ КАТЕГОРИЙ =====
+        function buildCategoryFilters() {
+            const container = document.getElementById('category-filters');
+            container.innerHTML = '';
+            const seen = new Set();
+
+            allMarkers.forEach(m => {
+                const cat = m._meta.category;
+                if (seen.has(cat)) return;
+                seen.add(cat);
+
+                const icon = ICONS[cat] ? ICONS[cat].icon : '📍';
+                const label = document.createElement('label');
+                label.innerHTML = `
+                    <input type="checkbox" data-category="${cat}" checked>
+                    ${icon} ${m._meta.categoryRu}
+                `;
+                container.appendChild(label);
             });
         }
 
-        // ===== ПЕРЕВОД ТЕГОВ НА РУССКИЙ =====
-        function getTagName(tagId) {
-            const tagNames = {
-                stroller: 'Коляска',
-                no_steps: 'Без ступенек',
-                toilet: 'Туалет',
-                changing_table: 'Пеленальный стол',
-                shade: 'Тень',
-                fence: 'Ограждение',
-                cafe: 'Кафе',
-                parking: 'Парковка',
-                free: 'Бесплатно',
-                paid: 'Платно',
-                indoor: 'Крытое',
-                outdoor: 'На улице',
-                summer: 'Лето',
-                winter: 'Зима',
-                all_year: 'Круглый год',
-                animals: 'Животные',
-                booking: 'Запись',
-                excursion: 'Экскурсии',
-                baby_friendly: 'Для малышей',
-                teens: 'Подростки',
-                rental: 'Прокат',
-                heated_room: 'Тёплое помещение',
-                instructor: 'Инструктор',
-                lighting: 'Освещение',
-                viewpoint: 'Смотровая',
-                rest: 'Зона отдыха',
-                nature: 'Природа',
-                picnic: 'Пикник',
-                // Новые теги для верёвочных парков и активного отдыха
-                height: 'Верёвочная трасса',
-                harness: 'Страховка',
-                zip_line: 'Зиплайн',
-                age_limit: 'Ограничение по возрасту',
-                height_limit: 'Ограничение по росту',
-                safety_briefing: 'Инструктаж'
-            };
-            return tagNames[tagId] || tagId;
+        // ===== ЛОГИКА ФИЛЬТРОВ =====
+        function passesFilters(m) {
+            const meta = m._meta;
+            const checks = document.querySelectorAll('#category-filters input[type="checkbox"]');
+
+            // 1. Категория
+            const catCheckbox = document.querySelector(`#category-filters input[data-category="${meta.category}"]`);
+            if (catCheckbox && !catCheckbox.checked) return false;
+
+            // 2. Сезон
+            const season = document.querySelector('input[name="season"]:checked').value;
+            if (season !== 'all') {
+                const seasonTags = ['winter', 'summer', 'all_year'];
+                const placeSeasons = meta.tags.filter(t => seasonTags.includes(t));
+                // если у места нет сезонных тегов — не фильтруем его
+                if (placeSeasons.length > 0) {
+                    if (season === 'winter') {
+                        if (!placeSeasons.includes('winter') && !placeSeasons.includes('all_year')) return false;
+                    } else if (season === 'summer') {
+                        if (!placeSeasons.includes('summer') && !placeSeasons.includes('all_year')) return false;
+                    } else if (season === 'all_year') {
+                        if (!placeSeasons.includes('all_year')) return false;
+                    }
+                }
+            }
+
+            // 3. Цена
+            const price = document.querySelector('input[name="price"]:checked').value;
+            if (price === 'free' && meta.price !== 'free') return false;
+            if (price === 'paid' && meta.price !== 'paid') return false;
+
+            // 4. Теги (все отмеченные должны присутствовать)
+            const tagChecks = document.querySelectorAll('#sidebar input[data-tag]');
+            for (const cb of tagChecks) {
+                if (cb.checked && !meta.tags.includes(cb.dataset.tag)) return false;
+            }
+
+            return true;
         }
+
+        function applyFilters() {
+            const visible = allMarkers.filter(passesFilters);
+
+            if (clusterer) {
+                clusterer.clearMarkers();
+                clusterer.addMarkers(visible);
+            } else {
+                allMarkers.forEach(m => m.setMap(visible.includes(m) ? map : null));
+            }
+
+            updateCounter(visible.length);
+        }
+
+        function updateCounter(visible) {
+            const total = allMarkers.length;
+            const shown = visible !== undefined ? visible : total;
+            document.getElementById('counter').textContent =
+                `Показано: ${shown} из ${total}`;
+        }
+
+        function attachFilterListeners() {
+            document.querySelectorAll('#sidebar input').forEach(input => {
+                input.addEventListener('change', applyFilters);
+            });
+        }
+
+        // ===== ПЕРЕВОД ТЕГОВ =====
+        function getTagName(tagId) {
+            const names = {
+                stroller: 'Коляска', no_steps: 'Без ступенек', toilet: 'Туалет',
+                changing_table: 'Пеленальный стол', shade: 'Тень', fence: 'Ограждение',
+                cafe: 'Кафе', parking: 'Парковка', free: 'Бесплатно', paid: 'Платно',
+                indoor: 'Крытое', outdoor: 'На улице', summer: 'Лето', winter: 'Зима',
+                all_year: 'Круглый год', animals: 'Животные', booking: 'Запись',
+                excursion: 'Экскурсии', baby_friendly: 'Для малышей', teens: 'Подростки',
+                rental: 'Прокат', heated_room: 'Тёплое помещение', instructor: 'Инструктор',
+                lighting: 'Освещение', viewpoint: 'Смотровая', rest: 'Зона отдыха',
+                nature: 'Природа', picnic: 'Пикник'
+            };
+            return names[tagId] || tagId;
+        }
+
+        // ===== UI: открыть/закрыть панель =====
+        document.getElementById('toggle-filters').addEventListener('click', () => {
+            const sidebar = document.getElementById('sidebar');
+            const btn = document.getElementById('toggle-filters');
+            sidebar.classList.toggle('open');
+            btn.textContent = sidebar.classList.contains('open') ? '✕ Закрыть' : '🎛 Фильтры';
+        });
+
+        // ===== UI: сброс фильтров =====
+        document.getElementById('reset-filters').addEventListener('click', () => {
+            document.querySelectorAll('#category-filters input[type="checkbox"]')
+                .forEach(cb => cb.checked = true);
+            document.querySelector('input[name="season"][value="all"]').checked = true;
+            document.querySelector('input[name="price"][value="all"]').checked = true;
+            document.querySelectorAll('#sidebar input[data-tag]')
+                .forEach(cb => cb.checked = false);
+            applyFilters();
+        });
     </script>
 </body>
 </html>
