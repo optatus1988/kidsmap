@@ -30,7 +30,6 @@
             transition: transform 0.3s ease;
         }
         #sidebar.open { transform: translateX(0); }
-
         #sidebar h2 { font-size: 18px; margin-bottom: 16px; color: #202124; }
         .filter-section {
             margin-bottom: 20px; padding-bottom: 16px;
@@ -53,15 +52,13 @@
             cursor: pointer; accent-color: #1a73e8;
             width: 16px; height: 16px;
         }
-
         #reset-filters {
             width: 100%; padding: 10px;
             background: #f1f3f4; border: none; border-radius: 8px;
             cursor: pointer; font-size: 14px; font-weight: 500;
-            color: #202124; transition: background 0.2s;
+            color: #202124;
         }
         #reset-filters:hover { background: #e8eaed; }
-
         #counter {
             margin-top: 14px; text-align: center;
             font-size: 13px; color: #5f6368;
@@ -100,9 +97,7 @@
         #loading.error { color: #d32f2f; }
         #loading .progress-text { margin-top: 8px; font-size: 13px; color: #666; }
 
-        @media (max-width: 480px) {
-            #sidebar { width: 90%; }
-        }
+        @media (max-width: 480px) { #sidebar { width: 90%; } }
     </style>
 </head>
 <body>
@@ -111,12 +106,10 @@
 
     <aside id="sidebar">
         <h2>Фильтры</h2>
-
         <div class="filter-section">
             <h3>Категории</h3>
             <div id="category-filters"></div>
         </div>
-
         <div class="filter-section">
             <h3>Сезон</h3>
             <label><input type="radio" name="season" value="all" checked> Все сезоны</label>
@@ -124,14 +117,12 @@
             <label><input type="radio" name="season" value="summer"> ☀️ Лето</label>
             <label><input type="radio" name="season" value="all_year"> 🗓 Круглый год</label>
         </div>
-
         <div class="filter-section">
             <h3>Цена</h3>
             <label><input type="radio" name="price" value="all" checked> Все</label>
             <label><input type="radio" name="price" value="free"> ✓ Бесплатно</label>
             <label><input type="radio" name="price" value="paid"> ₽ Платно</label>
         </div>
-
         <div class="filter-section">
             <h3>Важно для родителей</h3>
             <label><input type="checkbox" data-tag="stroller"> 🚼 Доступно с коляской</label>
@@ -141,7 +132,6 @@
             <label><input type="checkbox" data-tag="animals"> 🐾 Можно к животным</label>
             <label><input type="checkbox" data-tag="indoor"> 🏠 Крытое (для дождя)</label>
         </div>
-
         <button id="reset-filters">Сбросить все фильтры</button>
         <div id="counter">Показано: 0 из 0</div>
     </aside>
@@ -164,9 +154,7 @@
         let clusterer = null;
         let loadingTimeout;
 
-        // ===== КЭШ ГЕОКОДИРОВАНИЯ =====
-        // Хранит пары «адрес → {lat, lng}», чтобы не переспрашивать Google каждый раз
-        const CACHE_KEY = 'ufa_kids_map_geocode_v1';
+        const CACHE_KEY = 'ufa_kids_map_geocode_v2'; // v2 — сбросим старый кэш с ошибками
 
         function loadCache() {
             try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); }
@@ -177,7 +165,12 @@
             catch (e) { console.warn('Кэш не сохранился:', e); }
         }
 
-        // ===== ПЕРЕВОД КАТЕГОРИЙ =====
+        // ===== Функция «принудительно использовать координаты» =====
+        function isForceCoords(place) {
+            const v = String(place.force_coords || '').trim().toLowerCase();
+            return v === 'да' || v === 'yes' || v === 'true' || v === '1';
+        }
+
         const CATEGORY_MAP = {
             'парк': 'park', 'набережная': 'water', 'ожерелье': 'necklace',
             'площадка': 'playground', 'игровой центр': 'play_center',
@@ -208,7 +201,6 @@
             rope_park:    { icon: '🧗', color: '#E65100' }
         };
 
-        // ===== ИНИЦИАЛИЗАЦИЯ =====
         function initMap() {
             map = new google.maps.Map(document.getElementById("map"), {
                 center: { lat: 54.7388, lng: 55.9721 },
@@ -225,10 +217,9 @@
                     el.innerHTML = 'Ошибка: не удалось загрузить данные';
                     el.classList.add('error');
                 }
-            }, 60000); // увеличенный таймаут из-за геокодирования
+            }, 90000);
         }
 
-        // ===== ЗАГРУЗКА CSV =====
         function loadPlaces() {
             const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQNdW85Gii9oFVweII0vvXTXHFifFaB79NDyHpFAxWfbb0eucSgGA_tnvg3Yhu5JjXCBxisgNxgD6F8/pub?output=csv";
 
@@ -239,6 +230,7 @@
                 complete: async function(results) {
                     clearTimeout(loadingTimeout);
                     console.log('Загружено строк:', results.data.length);
+                    console.log('Колонки в таблице:', results.meta.fields);
 
                     const valid = results.data.filter(p => p.name && (p.address || (p.lat && p.lng)));
                     console.log('Валидных мест:', valid.length);
@@ -259,15 +251,15 @@
             });
         }
 
-        // ===== ОБРАБОТКА ВСЕХ МЕСТ: ГЕОКОДИРОВАНИЕ + СОЗДАНИЕ МАРКЕРОВ =====
+        // ===== Диагностическая таблица =====
+        const diagnostics = []; // {name, source, lat, lng, address}
+
         async function processPlaces(places) {
             const geocoder = new google.maps.Geocoder();
             const cache = loadCache();
             const progressEl = document.getElementById('progress-text');
 
-            let geocodedCount = 0;   // сколько нашлось по адресу
-            let coordCount = 0;      // сколько использовало координаты
-            let failedCount = 0;     // сколько совсем потеряли
+            let byAddress = 0, byCoords = 0, failed = 0;
 
             for (let i = 0; i < places.length; i++) {
                 const place = places[i];
@@ -276,30 +268,46 @@
                 const result = await resolveCoordinates(geocoder, place, cache);
 
                 if (!result) {
-                    console.warn(`❌ Не удалось определить местоположение: ${place.name}`);
-                    failedCount++;
+                    console.warn(`❌ Не удалось определить: ${place.name}`);
+                    diagnostics.push({
+                        name: place.name,
+                        source: 'НЕ НАЙДЕНО',
+                        lat: '', lng: '',
+                        address: place.address || ''
+                    });
+                    failed++;
                     continue;
                 }
 
-                if (result.source === 'address') geocodedCount++;
-                else coordCount++;
+                if (result.source === 'address') byAddress++;
+                else byCoords++;
+
+                diagnostics.push({
+                    name: place.name,
+                    source: result.source === 'address' ? 'АДРЕС' : (result.source === 'coords' ? 'КООРДИНАТЫ' : 'КЭШ'),
+                    lat: result.lat.toFixed(6),
+                    lng: result.lng.toFixed(6),
+                    address: place.address || ''
+                });
 
                 createMarker(place, result.lat, result.lng);
 
-                // Небольшая пауза между запросами, чтобы не упереться в лимит геокодера
                 if (i < places.length - 1) await delay(60);
             }
 
-            console.log(`✓ По адресу: ${geocodedCount}, по координатам: ${coordCount}, ошибок: ${failedCount}`);
+            console.log(`✓ По адресу: ${byAddress}, по координатам: ${byCoords}, ошибок: ${failed}`);
 
-            // ===== КЛАСТЕРИЗАЦИЯ =====
+            // Печатаем в консоль удобную таблицу для проверки
+            console.log('%c📊 ДИАГНОСТИКА ИСТОЧНИКОВ КООРДИНАТ (отсортировано по источнику)', 'font-weight:bold; font-size:14px; color:#1a73e8;');
+            console.table(diagnostics);
+
             if (typeof markerClusterer !== 'undefined' && allMarkers.length > 0) {
                 clusterer = new markerClusterer.MarkerClusterer({
                     map: map,
                     markers: allMarkers,
                     algorithm: new markerClusterer.GridAlgorithm({ gridSize: 60 })
                 });
-                console.log('Кластеризация включена');
+                console.log('✓ Кластеризация включена');
             } else {
                 allMarkers.forEach(m => m.setMap(map));
             }
@@ -311,16 +319,27 @@
             document.getElementById('loading').classList.add('hidden');
         }
 
-        // ===== ОПРЕДЕЛЕНИЕ КООРДИНАТ: АДРЕС → КООРДИНАТЫ → NULL =====
+        // ===== ГЛАВНАЯ ЛОГИКА ВЫБОРА КООРДИНАТ =====
         async function resolveCoordinates(geocoder, place, cache) {
-            // 1. ПРИОРИТЕТ — АДРЕС
+            const forceCoords = isForceCoords(place);
+
+            // 1. ПРИНУДИТЕЛЬНО КООРДИНАТЫ (флаг force_coords = да)
+            if (forceCoords) {
+                const lat = parseFloat(place.lat);
+                const lng = parseFloat(place.lng);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    console.log(`🔒 Принудительно координаты: ${place.name} → ${lat}, ${lng}`);
+                    return { lat, lng, source: 'coords' };
+                }
+                console.warn(`⚠️ force_coords=да, но координат нет: ${place.name}`);
+            }
+
+            // 2. АДРЕС (по умолчанию — приоритет)
             if (place.address && String(place.address).trim() !== '') {
                 const query = buildAddressQuery(place);
-                
-                // Сначала смотрим кэш
+
                 if (cache[query]) {
-                    console.log(`📦 Из кэша: ${place.name} → ${cache[query].lat}, ${cache[query].lng}`);
-                    return { ...cache[query], source: 'address' };
+                    return { ...cache[query], source: 'cache' };
                 }
 
                 const coords = await geocodeAddress(geocoder, query);
@@ -333,7 +352,7 @@
                 console.warn(`⚠️ Адрес не найден: ${place.name} (${query}) → пробуем координаты`);
             }
 
-            // 2. FALLBACK — КООРДИНАТЫ ИЗ ТАБЛИЦЫ
+            // 3. РЕЗЕРВНЫЕ КООРДИНАТЫ
             if (place.lat && place.lng) {
                 const lat = parseFloat(place.lat);
                 const lng = parseFloat(place.lng);
@@ -346,20 +365,19 @@
             return null;
         }
 
-        // ===== ФОРМИРОВАНИЕ ПОЛНОГО АДРЕСА ДЛЯ ГЕОКОДЕРА =====
         function buildAddressQuery(place) {
             const parts = [];
-            if (place.district && String(place.district).trim()) {
-                parts.push(String(place.district).trim());
-            }
             if (place.address && String(place.address).trim()) {
                 parts.push(String(place.address).trim());
             }
+            if (place.district && String(place.district).trim()) {
+                parts.push(String(place.district).trim());
+            }
+            parts.push('Уфа');
             parts.push('Россия');
             return parts.join(', ');
         }
 
-        // ===== ЗАПРОС К GEOCODER =====
         function geocodeAddress(geocoder, address) {
             return new Promise((resolve) => {
                 geocoder.geocode(
@@ -380,7 +398,6 @@
             return new Promise(resolve => setTimeout(resolve, ms));
         }
 
-        // ===== СОЗДАНИЕ ОДНОГО МАРКЕРА =====
         function createMarker(place, lat, lng) {
             try {
                 const category = getCategory(place.category);
@@ -456,12 +473,10 @@
             }
         }
 
-        // ===== ФИЛЬТРЫ =====
         function buildCategoryFilters() {
             const container = document.getElementById('category-filters');
             container.innerHTML = '';
             const seen = new Set();
-
             allMarkers.forEach(m => {
                 const cat = m._meta.category;
                 if (seen.has(cat)) return;
@@ -478,7 +493,6 @@
 
         function passesFilters(m) {
             const meta = m._meta;
-
             const catCheckbox = document.querySelector(`#category-filters input[data-category="${meta.category}"]`);
             if (catCheckbox && !catCheckbox.checked) return false;
 
@@ -505,20 +519,17 @@
             for (const cb of tagChecks) {
                 if (cb.checked && !meta.tags.includes(cb.dataset.tag)) return false;
             }
-
             return true;
         }
 
         function applyFilters() {
             const visible = allMarkers.filter(passesFilters);
-
             if (clusterer) {
                 clusterer.clearMarkers();
                 clusterer.addMarkers(visible);
             } else {
                 allMarkers.forEach(m => m.setMap(visible.includes(m) ? map : null));
             }
-
             updateCounter(visible.length);
         }
 
@@ -549,7 +560,6 @@
             return names[tagId] || tagId;
         }
 
-        // ===== UI =====
         document.getElementById('toggle-filters').addEventListener('click', () => {
             const sidebar = document.getElementById('sidebar');
             const btn = document.getElementById('toggle-filters');
