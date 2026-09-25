@@ -21,16 +21,28 @@
             width: 100%;
         }
         
-        /* Стили для всплывающих окон */
         .info-window {
             max-width: 300px;
             padding: 10px;
         }
         
         .info-window h3 {
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             color: #333;
             font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .info-window .address {
+            color: #555;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        
+        .info-window .district {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 10px;
         }
         
         .info-window .tags {
@@ -52,11 +64,13 @@
             color: #666;
             font-size: 14px;
             line-height: 1.4;
+            margin: 8px 0;
         }
         
         .info-window .price {
-            margin-top: 10px;
-            font-weight: bold;
+            margin-top: 8px;
+            font-weight: 600;
+            font-size: 14px;
         }
         
         .info-window .price.free {
@@ -67,7 +81,23 @@
             color: #f44336;
         }
         
-        /* Индикатор загрузки */
+        .info-window .route-btn {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 8px 14px;
+            background: #1a73e8;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        
+        .info-window .route-btn:hover {
+            background: #1557b0;
+        }
+        
         #loading {
             position: fixed;
             top: 50%;
@@ -83,6 +113,10 @@
         
         #loading.hidden {
             display: none;
+        }
+        
+        #loading.error {
+            color: #d32f2f;
         }
     </style>
 </head>
@@ -101,8 +135,31 @@
     <script>
         let map;
         let markers = [];
+        let loadingTimeout;
         
-        // Иконки для разных категорий
+        // ===== ПЕРЕВОД РУССКИХ КАТЕГОРИЙ ИЗ ТАБЛИЦЫ =====
+        const CATEGORY_MAP = {
+            'парк': 'park',
+            'набережная': 'water',
+            'ожерелье': 'necklace',
+            'площадка': 'playground',
+            'игровой центр': 'play_center',
+            'зоопарк': 'zoo',
+            'ферма': 'farm',
+            'пикник': 'picnic',
+            'каток': 'skating_rink',
+            'ледовый городок': 'ice_town',
+            'тюбинг': 'tubing',
+            'горнолыжка': 'ski_resort'
+        };
+
+        function getCategory(categoryFromTable) {
+            if (!categoryFromTable) return 'park';
+            const lower = String(categoryFromTable).trim().toLowerCase();
+            return CATEGORY_MAP[lower] || 'park';
+        }
+        
+        // ===== ИКОНКИ И ЦВЕТА КАТЕГОРИЙ =====
         const ICONS = {
             park: { icon: '🌳', color: '#2E7D32' },
             water: { icon: '🌊', color: '#1E88E5' },
@@ -118,8 +175,8 @@
             ski_resort: { icon: '⛷️', color: '#D32F2F' }
         };
 
+        // ===== ИНИЦИАЛИЗАЦИЯ КАРТЫ =====
         function initMap() {
-            // Центрируем карту на Уфе
             map = new google.maps.Map(document.getElementById("map"), {
                 center: { lat: 54.7388, lng: 55.9721 },
                 zoom: 11,
@@ -127,123 +184,160 @@
                 streetViewControl: false
             });
             
-            // Загружаем данные из CSV
             loadPlaces();
+            
+            // Таймаут: если данные не загрузились за 10 секунд - показываем ошибку
+            loadingTimeout = setTimeout(() => {
+                const loadingEl = document.getElementById('loading');
+                if (loadingEl && !loadingEl.classList.contains('hidden')) {
+                    loadingEl.textContent = 'Ошибка: не удалось загрузить данные';
+                    loadingEl.classList.add('error');
+                }
+            }, 10000);
         }
 
-function loadPlaces() {
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQNdW85Gii9oFVweII0vvXTXHFifFaB79NDyHpFAxWfbb0eucSgGA_tnvg3Yhu5JjXCBxisgNxgD6F8/pub?output=csv";
-    
-    Papa.parse(csvUrl, {
-        download: true,
-        header: true,
-        skipEmptyLines: true,
-        complete: function(results) {
-            console.log('Загружено мест:', results.data.length);
+        // ===== ЗАГРУЗКА ДАННЫХ ИЗ GOOGLE ТАБЛИЦЫ =====
+        function loadPlaces() {
+            const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQNdW85Gii9oFVweII0vvXTXHFifFaB79NDyHpFAxWfbb0eucSgGA_tnvg3Yhu5JjXCBxisgNxgD6F8/pub?output=csv";
             
-            // Фильтруем пустые строки
-            const validPlaces = results.data.filter(place => 
-                place.name && place.lat && place.lng
-            );
-            
-            console.log('Валидных мест:', validPlaces.length);
-            
-            if (validPlaces.length > 0) {
-                displayMarkers(validPlaces);
-            }
-            
-            // Скрываем индикатор загрузки
-            const loadingEl = document.getElementById('loading');
-            if (loadingEl) {
-                loadingEl.classList.add('hidden');
-            }
-        },
-        error: function(err) {
-            console.error('Ошибка загрузки CSV:', err);
-            const loadingEl = document.getElementById('loading');
-            if (loadingEl) {
-                loadingEl.textContent = 'Ошибка загрузки данных';
-            }
-        }
-    });
-}
-
-        function displayMarkers(places) {
-            places.forEach((place, index) => {
-                // Проверяем что есть координаты
-                if (!place.lat || !place.lng) {
-                    console.warn('Пропущено место без координат:', place.name);
-                    return;
+            Papa.parse(csvUrl, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    clearTimeout(loadingTimeout);
+                    console.log('Загружено строк из таблицы:', results.data.length);
+                    
+                    // Фильтруем места: нужны либо координаты, либо адрес
+                    const validPlaces = results.data.filter(place => 
+                        place.name && 
+                        ((place.lat && place.lng) || place.address)
+                    );
+                    
+                    console.log('Валидных мест:', validPlaces.length);
+                    
+                    if (validPlaces.length > 0) {
+                        displayMarkers(validPlaces);
+                    } else {
+                        console.warn('Не найдено ни одного валидного места');
+                    }
+                    
+                    // Скрываем индикатор загрузки
+                    const loadingEl = document.getElementById('loading');
+                    if (loadingEl) {
+                        loadingEl.classList.add('hidden');
+                    }
+                },
+                error: function(err) {
+                    clearTimeout(loadingTimeout);
+                    console.error('Ошибка загрузки CSV:', err);
+                    const loadingEl = document.getElementById('loading');
+                    if (loadingEl) {
+                        loadingEl.textContent = 'Ошибка загрузки данных из таблицы';
+                        loadingEl.classList.add('error');
+                    }
                 }
-                
-                const lat = parseFloat(place.lat);
-                const lng = parseFloat(place.lng);
-                
-                if (isNaN(lat) || isNaN(lng)) {
-                    console.warn('Неверные координаты у места:', place.name);
-                    return;
-                }
-
-                const category = getCategory(place.category);
-                const iconConfig = ICONS[category] || ICONS.park;
-                
-                // Создаем SVG-иконку
-                const svgIcon = {
-                    path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z",
-                    fillColor: iconConfig.color,
-                    fillOpacity: 0.9,
-                    strokeColor: '#ffffff',
-                    strokeWeight: 2,
-                    scale: 2,
-                    anchor: new google.maps.Point(12, 24),
-                    labelOrigin: new google.maps.Point(12, 10)
-                };
-
-                // Создаем маркер
-                const marker = new google.maps.Marker({
-                    position: { lat: lat, lng: lng },
-                    map: map,
-                    icon: svgIcon,
-                    label: {
-                        text: iconConfig.icon,
-                        color: '#ffffff',
-                        fontSize: '14px',
-                        fontWeight: 'bold'
-                    },
-                    title: place.name
-                });
-
-                // Создаем контент для всплывающего окна
-                const tags = place.tags ? place.tags.split(',').map(t => t.trim()) : [];
-                const tagsHtml = tags.map(tag => `<span class="tag">${getTagName(tag)}</span>`).join('');
-                
-                const priceText = place.price === 'free' ? 'Бесплатно' : 'Платно';
-                const priceClass = place.price === 'free' ? 'free' : 'paid';
-
-                const infoContent = `
-                    <div class="info-window">
-                        <h3>${place.name}</h3>
-                        <div class="tags">${tagsHtml}</div>
-                        <div class="description">${place.description || ''}</div>
-                        <div class="price ${priceClass}">${priceText}</div>
-                        ${place.link ? `<div><a href="${place.link}" target="_blank">Подробнее</a></div>` : ''}
-                    </div>
-                `;
-
-                const infoWindow = new google.maps.InfoWindow({
-                    content: infoContent
-                });
-
-                // Открываем окно при клике
-                marker.addListener('click', () => {
-                    infoWindow.open(map, marker);
-                });
-
-                markers.push(marker);
             });
         }
 
-        // Переводим теги на русский
+        // ===== ОТРИСОВКА МЕТОК =====
+        function displayMarkers(places) {
+            places.forEach((place) => {
+                try {
+                    // Если есть координаты - используем их
+                    // Если координат нет, но есть адрес - пропускаем (потом добавим геокодирование)
+                    if (!place.lat || !place.lng) {
+                        console.warn('Пропущено (нет координат):', place.name);
+                        return;
+                    }
+                    
+                    const lat = parseFloat(place.lat);
+                    const lng = parseFloat(place.lng);
+                    
+                    if (isNaN(lat) || isNaN(lng)) {
+                        console.warn('Неверные координаты у места:', place.name);
+                        return;
+                    }
+
+                    const category = getCategory(place.category);
+                    const iconConfig = ICONS[category] || ICONS.park;
+                    
+                    const svgIcon = {
+                        path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z",
+                        fillColor: iconConfig.color,
+                        fillOpacity: 0.9,
+                        strokeColor: '#ffffff',
+                        strokeWeight: 2,
+                        scale: 2,
+                        anchor: new google.maps.Point(12, 24),
+                        labelOrigin: new google.maps.Point(12, 10)
+                    };
+
+                    const marker = new google.maps.Marker({
+                        position: { lat: lat, lng: lng },
+                        map: map,
+                        icon: svgIcon,
+                        label: {
+                            text: iconConfig.icon,
+                            color: '#ffffff',
+                            fontSize: '14px',
+                            fontWeight: 'bold'
+                        },
+                        title: place.name
+                    });
+
+                    // ===== ФОРМИРОВАНИЕ СОДЕРЖИМОГО КАРТОЧКИ =====
+                    const tags = place.tags ? String(place.tags).split(',').map(t => t.trim()).filter(t => t) : [];
+                    const tagsHtml = tags.map(tag => `<span class="tag">${getTagName(tag)}</span>`).join('');
+                    
+                    // Правильная обработка цены
+                    let priceHtml = '';
+                    if (place.price && String(place.price).trim() !== '') {
+                        const priceLower = String(place.price).trim().toLowerCase();
+                        if (priceLower === 'free') {
+                            priceHtml = '<div class="price free">✓ Бесплатно</div>';
+                        } else if (priceLower === 'paid') {
+                            priceHtml = '<div class="price paid">₽ Платно</div>';
+                        }
+                    }
+                    
+                    // Адрес и район
+                    const addressHtml = place.address ? `<div class="address">📍 ${place.address}</div>` : '';
+                    const districtHtml = place.district ? `<div class="district">${place.district}</div>` : '';
+                    
+                    // Кнопка маршрута (открывает Google Maps с прокладкой маршрута)
+                    const routeUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+
+                    const infoContent = `
+                        <div class="info-window">
+                            <h3>${place.name}</h3>
+                            ${addressHtml}
+                            ${districtHtml}
+                            <div class="tags">${tagsHtml}</div>
+                            <div class="description">${place.description || ''}</div>
+                            ${priceHtml}
+                            <a href="${routeUrl}" target="_blank" class="route-btn">🚗 Проложить маршрут</a>
+                            ${place.link ? `<div style="margin-top:8px;"><a href="${place.link}" target="_blank">Подробнее →</a></div>` : ''}
+                        </div>
+                    `;
+
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: infoContent
+                    });
+
+                    marker.addListener('click', () => {
+                        infoWindow.open(map, marker);
+                    });
+
+                    markers.push(marker);
+                    
+                } catch (error) {
+                    console.error('Ошибка при обработке места:', place.name, error);
+                }
+            });
+        }
+
+        // ===== ПЕРЕВОД ТЕГОВ НА РУССКИЙ =====
         function getTagName(tagId) {
             const tagNames = {
                 stroller: 'Коляска',
