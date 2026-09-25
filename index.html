@@ -150,8 +150,8 @@
             'каток': 'skating_rink',
             'ледовый городок': 'ice_town',
             'тюбинг': 'tubing',
-            'горнолыжка': 'ski_resort'
-            'верёвочный парк': 'rope_park',
+            'горнолыжка': 'ski_resort',
+            'верёвочный парк': 'rope_park'
         };
 
         function getCategory(categoryFromTable) {
@@ -173,8 +173,8 @@
             skating_rink: { icon: '⛸️', color: '#03A9F4' },
             ice_town: { icon: '❄️', color: '#9C27B0' },
             tubing: { icon: '🎿', color: '#FF5722' },
-            ski_resort: { icon: '⛷️', color: '#D32F2F' }
-            rope_park: { icon: '🧗', color: '#E65100' },
+            ski_resort: { icon: '⛷️', color: '#D32F2F' },
+            rope_park: { icon: '🧗', color: '#E65100' }
         };
 
         // ===== ИНИЦИАЛИЗАЦИЯ КАРТЫ =====
@@ -369,7 +369,14 @@
                 viewpoint: 'Смотровая',
                 rest: 'Зона отдыха',
                 nature: 'Природа',
-                picnic: 'Пикник'
+                picnic: 'Пикник',
+                // Новые теги для верёвочных парков и активного отдыха
+                height: 'Верёвочная трасса',
+                harness: 'Страховка',
+                zip_line: 'Зиплайн',
+                age_limit: 'Ограничение по возрасту',
+                height_limit: 'Ограничение по росту',
+                safety_briefing: 'Инструктаж'
             };
             return tagNames[tagId] || tagId;
         }
