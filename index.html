@@ -184,7 +184,7 @@ function loadPlaces() {
                     return;
                 }
 
-                const category = place.category || 'park';
+                const category = getCategory(place.category);
                 const iconConfig = ICONS[category] || ICONS.park;
                 
                 // Создаем SVG-иконку
