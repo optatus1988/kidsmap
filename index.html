@@ -131,28 +131,42 @@
             loadPlaces();
         }
 
-        function loadPlaces() {
-            const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQNdW85Gii9oFVweII0vvXTXHFifFaB79NDyHpFAxWfbb0eucSgGA_tnvg3Yhu5JjXCBxisgNxgD6F8/pub?output=csv";
+function loadPlaces() {
+    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQNdW85Gii9oFVweII0vvXTXHFifFaB79NDyHpFAxWfbb0eucSgGA_tnvg3Yhu5JjXCBxisgNxgD6F8/pub?output=csv";
+    
+    Papa.parse(csvUrl, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+            console.log('Загружено мест:', results.data.length);
             
-            Papa.parse(csvUrl, {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    console.log('Загружено мест:', results.data.length);
-                    console.log('Первая строка:', results.data[0]);
-                    
-                    displayMarkers(results.data);
-                    
-                    // Скрываем индикатор загрузки
-                    document.getElementById('loading').classList.add('hidden');
-                },
-                error: function(err) {
-                    console.error('Ошибка загрузки CSV:', err);
-                    alert('Не удалось загрузить данные из таблицы');
-                }
-            });
+            // Фильтруем пустые строки
+            const validPlaces = results.data.filter(place => 
+                place.name && place.lat && place.lng
+            );
+            
+            console.log('Валидных мест:', validPlaces.length);
+            
+            if (validPlaces.length > 0) {
+                displayMarkers(validPlaces);
+            }
+            
+            // Скрываем индикатор загрузки
+            const loadingEl = document.getElementById('loading');
+            if (loadingEl) {
+                loadingEl.classList.add('hidden');
+            }
+        },
+        error: function(err) {
+            console.error('Ошибка загрузки CSV:', err);
+            const loadingEl = document.getElementById('loading');
+            if (loadingEl) {
+                loadingEl.textContent = 'Ошибка загрузки данных';
+            }
         }
+    });
+}
 
         function displayMarkers(places) {
             places.forEach((place, index) => {
