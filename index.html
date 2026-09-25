@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Карта мест для отдыха с детьми — Уфа</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body, html {
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        
+        /* Стили для всплывающих окон */
+        .info-window {
+            max-width: 300px;
+            padding: 10px;
+        }
+        
+        .info-window h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        .info-window .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin: 10px 0;
+        }
+        
+        .info-window .tag {
+            background: #e3f2fd;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #1976d2;
+        }
+        
+        .info-window .description {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .info-window .price {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        .info-window .price.free {
+            color: #4caf50;
+        }
+        
+        .info-window .price.paid {
+            color: #f44336;
+        }
+        
+        /* Индикатор загрузки */
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-size: 16px;
+            z-index: 9999;
+        }
+        
+        #loading.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Загрузка карты...</div>
+    <div id="map"></div>
+
+    <!-- PapaParse для чтения CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+
+    <!-- Google Maps API -->
+    <script async
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBk4WJwLRmDDs85K2V9Uhyijxc35HazgAs&callback=initMap">
+    </script>
+
+    <script>
+        let map;
+        let markers = [];
+        
+        // Иконки для разных категорий
+        const ICONS = {
+            park: { icon: '🌳', color: '#2E7D32' },
+            water: { icon: '🌊', color: '#1E88E5' },
+            necklace: { icon: '🚶', color: '#00897B' },
+            playground: { icon: '🛝', color: '#FB8C00' },
+            play_center: { icon: '🎠', color: '#8E24AA' },
+            zoo: { icon: '🦙', color: '#F4511E' },
+            farm: { icon: '🐄', color: '#7CB342' },
+            picnic: { icon: '🧺', color: '#6D4C41' },
+            skating_rink: { icon: '⛸️', color: '#03A9F4' },
+            ice_town: { icon: '❄️', color: '#9C27B0' },
+            tubing: { icon: '🎿', color: '#FF5722' },
+            ski_resort: { icon: '⛷️', color: '#D32F2F' }
+        };
+
+        function initMap() {
+            // Центрируем карту на Уфе
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: 54.7388, lng: 55.9721 },
+                zoom: 11,
+                mapTypeControl: false,
+                streetViewControl: false
+            });
+            
+            // Загружаем данные из CSV
+            loadPlaces();
+        }
+
+        function loadPlaces() {
+            const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQNdW85Gii9oFVweII0vvXTXHFifFaB79NDyHpFAxWfbb0eucSgGA_tnvg3Yhu5JjXCBxisgNxgD6F8/pub?output=csv";
+            
+            Papa.parse(csvUrl, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    console.log('Загружено мест:', results.data.length);
+                    console.log('Первая строка:', results.data[0]);
+                    
+                    displayMarkers(results.data);
+                    
+                    // Скрываем индикатор загрузки
+                    document.getElementById('loading').classList.add('hidden');
+                },
+                error: function(err) {
+                    console.error('Ошибка загрузки CSV:', err);
+                    alert('Не удалось загрузить данные из таблицы');
+                }
+            });
+        }
+
+        function displayMarkers(places) {
+            places.forEach((place, index) => {
+                // Проверяем что есть координаты
+                if (!place.lat || !place.lng) {
+                    console.warn('Пропущено место без координат:', place.name);
+                    return;
+                }
+                
+                const lat = parseFloat(place.lat);
+                const lng = parseFloat(place.lng);
+                
+                if (isNaN(lat) || isNaN(lng)) {
+                    console.warn('Неверные координаты у места:', place.name);
+                    return;
+                }
+
+                const category = place.category || 'park';
+                const iconConfig = ICONS[category] || ICONS.park;
+                
+                // Создаем SVG-иконку
+                const svgIcon = {
+                    path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z",
+                    fillColor: iconConfig.color,
+                    fillOpacity: 0.9,
+                    strokeColor: '#ffffff',
+                    strokeWeight: 2,
+                    scale: 2,
+                    anchor: new google.maps.Point(12, 24),
+                    labelOrigin: new google.maps.Point(12, 10)
+                };
+
+                // Создаем маркер
+                const marker = new google.maps.Marker({
+                    position: { lat: lat, lng: lng },
+                    map: map,
+                    icon: svgIcon,
+                    label: {
+                        text: iconConfig.icon,
+                        color: '#ffffff',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                    },
+                    title: place.name
+                });
+
+                // Создаем контент для всплывающего окна
+                const tags = place.tags ? place.tags.split(',').map(t => t.trim()) : [];
+                const tagsHtml = tags.map(tag => `<span class="tag">${getTagName(tag)}</span>`).join('');
+                
+                const priceText = place.price === 'free' ? 'Бесплатно' : 'Платно';
+                const priceClass = place.price === 'free' ? 'free' : 'paid';
+
+                const infoContent = `
+                    <div class="info-window">
+                        <h3>${place.name}</h3>
+                        <div class="tags">${tagsHtml}</div>
+                        <div class="description">${place.description || ''}</div>
+                        <div class="price ${priceClass}">${priceText}</div>
+                        ${place.link ? `<div><a href="${place.link}" target="_blank">Подробнее</a></div>` : ''}
+                    </div>
+                `;
+
+                const infoWindow = new google.maps.InfoWindow({
+                    content: infoContent
+                });
+
+                // Открываем окно при клике
+                marker.addListener('click', () => {
+                    infoWindow.open(map, marker);
+                });
+
+                markers.push(marker);
+            });
+        }
+
+        // Переводим теги на русский
+        function getTagName(tagId) {
+            const tagNames = {
+                stroller: 'Коляска',
+                no_steps: 'Без ступенек',
+                toilet: 'Туалет',
+                changing_table: 'Пеленальный стол',
+                shade: 'Тень',
+                fence: 'Ограждение',
+                cafe: 'Кафе',
+                parking: 'Парковка',
+                free: 'Бесплатно',
+                paid: 'Платно',
+                indoor: 'Крытое',
+                outdoor: 'На улице',
+                summer: 'Лето',
+                winter: 'Зима',
+                all_year: 'Круглый год',
+                animals: 'Животные',
+                booking: 'Запись',
+                excursion: 'Экскурсии',
+                baby_friendly: 'Для малышей',
+                teens: 'Подростки',
+                rental: 'Прокат',
+                heated_room: 'Тёплое помещение',
+                instructor: 'Инструктор',
+                lighting: 'Освещение',
+                viewpoint: 'Смотровая',
+                rest: 'Зона отдыха',
+                nature: 'Природа',
+                picnic: 'Пикник'
+            };
+            return tagNames[tagId] || tagId;
+        }
+    </script>
+</body>
+</html>
